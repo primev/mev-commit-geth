@@ -443,7 +443,7 @@ func (tt *cliqueTest) run(t *testing.T) {
 			header.Extra = make([]byte, extraVanity+len(auths)*common.AddressLength+extraSeal)
 			accounts.checkpoint(header, auths)
 		}
-		header.Difficulty = diffInTurn // Ignored, we just need a valid number
+		header.Difficulty = diffInTurnSenior // Ignored, we just need a valid number
 
 		// Generate the signature, embed it into the header and the block
 		accounts.sign(header, tt.votes[j].signer)
