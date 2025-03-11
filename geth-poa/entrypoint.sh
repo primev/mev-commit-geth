@@ -50,14 +50,18 @@ if [ "$GETH_NODE_TYPE" = "signer" ]; then
 				"$GETH_DATA_DIR"/block-signer-key
 		fi
 	else
-		echo "$GETH_KEYSTORE_DIR exists."
-		if [ -z "$BLOCK_SIGNER_PRIVATE_KEY" ]; then
-			GETH_ACCOUNT_LIST=$("$GETH_BIN_PATH" --verbosity="$GETH_VERBOSITY" account list --datadir "$GETH_DATA_DIR")
-			BLOCK_SIGNER_ADDRESS_WITHOUT_PREFIX=$(echo "$GETH_ACCOUNT_LIST" | grep -oE '[0-9a-fA-F]{40}$')
-			BLOCK_SIGNER_ADDRESS="0x$BLOCK_SIGNER_ADDRESS_WITHOUT_PREFIX"
-			echo "Block signer address with 0x prefix: $BLOCK_SIGNER_ADDRESS"
-		fi
-	fi
+        echo "$GETH_KEYSTORE_DIR exists."
+        if [ -n "$BLOCK_SIGNER_ADDRESS" ]; then
+            echo "Block signer address with 0x prefix: $BLOCK_SIGNER_ADDRESS"
+        else
+            if [ -z "$BLOCK_SIGNER_PRIVATE_KEY" ]; then
+                GETH_ACCOUNT_LIST=$("$GETH_BIN_PATH" --verbosity="$GETH_VERBOSITY" account list --datadir "$GETH_DATA_DIR")
+                BLOCK_SIGNER_ADDRESS_WITHOUT_PREFIX=$(echo "$GETH_ACCOUNT_LIST" | grep -oE '[0-9a-fA-F]{40}$')
+                BLOCK_SIGNER_ADDRESS="0x$BLOCK_SIGNER_ADDRESS_WITHOUT_PREFIX"
+                echo "Block signer address with 0x prefix: $BLOCK_SIGNER_ADDRESS"
+            fi
+        fi
+    fi
 fi
 
 # Init geth if needed
