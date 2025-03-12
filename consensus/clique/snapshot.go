@@ -19,6 +19,7 @@ package clique
 import (
 	"bytes"
 	"encoding/json"
+	"sort"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -60,6 +61,7 @@ type Snapshot struct {
 	Recents map[uint64]common.Address   `json:"recents"` // Set of recent signers for spam protections
 	Votes   []*Vote                     `json:"votes"`   // List of votes cast in chronological order
 	Tally   map[common.Address]Tally    `json:"tally"`   // Current vote tally to avoid recalculating
+	Seniors map[common.Address]struct{} `json:"seniors"` // Set of senior signers
 }
 
 // newSnapshot creates a new snapshot with the specified startup parameters. This
@@ -74,9 +76,20 @@ func newSnapshot(config *params.CliqueConfig, sigcache *sigLRU, number uint64, h
 		Signers:  make(map[common.Address]struct{}),
 		Recents:  make(map[uint64]common.Address),
 		Tally:    make(map[common.Address]Tally),
+		Seniors:  make(map[common.Address]struct{}),
 	}
 	for _, signer := range signers {
 		snap.Signers[signer] = struct{}{}
+	}
+	sortedSigners := make([]common.Address, 0, len(snap.Signers))
+	for signer := range snap.Signers {
+		sortedSigners = append(sortedSigners, signer)
+	}
+	sort.Slice(sortedSigners, func(i, j int) bool {
+		return bytes.Compare(sortedSigners[i].Bytes(), sortedSigners[j].Bytes()) < 0
+	})
+	if len(sortedSigners) > 0 {
+		snap.Seniors[sortedSigners[0]] = struct{}{}
 	}
 	return snap
 }
@@ -310,6 +323,12 @@ func (s *Snapshot) signers() []common.Address {
 	}
 	slices.SortFunc(sigs, common.Address.Cmp)
 	return sigs
+}
+
+// isSenior checks if the given address is a senior signer.
+func (s *Snapshot) isSenior(address common.Address) bool {
+	_, senior := s.Seniors[address]
+	return senior
 }
 
 // inturn returns if a signer at a given block height is in-turn or not.

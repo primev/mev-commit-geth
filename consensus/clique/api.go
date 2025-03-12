@@ -162,7 +162,7 @@ func (api *API) Status() (*status, error) {
 		if h == nil {
 			return nil, fmt.Errorf("missing block %d", n)
 		}
-		if h.Difficulty.Cmp(diffInTurn) == 0 {
+		if h.Difficulty.Cmp(diffInTurnSenior) == 0 || h.Difficulty.Cmp(diffInTurnSubordinate) == 0 {
 			optimals++
 		}
 		diff += h.Difficulty.Uint64()

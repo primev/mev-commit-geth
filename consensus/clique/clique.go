@@ -68,8 +68,9 @@ var (
 
 	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 
-	diffInTurn = big.NewInt(2) // Block difficulty for in-turn signatures
-	diffNoTurn = big.NewInt(1) // Block difficulty for out-of-turn signatures
+	diffInTurnSenior      = big.NewInt(7) // Block difficulty for in-turn signatures
+	diffInTurnSubordinate = big.NewInt(2) // Block difficulty for in-turn signatures
+	diffNoTurn            = big.NewInt(1) // Block difficulty for out-of-turn signatures
 
 	blockSizeGaugeName = "clique/block_size_in_bytes"
 	gasUsedInBlock     = "clique/gas_used_in_block"
@@ -296,7 +297,7 @@ func (c *Clique) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
 	if number > 0 {
-		if header.Difficulty == nil || (header.Difficulty.Cmp(diffInTurn) != 0 && header.Difficulty.Cmp(diffNoTurn) != 0) {
+		if header.Difficulty == nil || (header.Difficulty.Cmp(diffInTurnSenior) != 0 && header.Difficulty.Cmp(diffInTurnSenior) != 0 && header.Difficulty.Cmp(diffInTurnSubordinate) != 0) {
 			return errInvalidDifficulty
 		}
 	}
@@ -505,7 +506,7 @@ func (c *Clique) verifySeal(snap *Snapshot, header *types.Header, parents []*typ
 	// Ensure that the difficulty corresponds to the turn-ness of the signer
 	if !c.fakeDiff {
 		inturn := snap.inturn(header.Number.Uint64(), signer)
-		if inturn && header.Difficulty.Cmp(diffInTurn) != 0 {
+		if inturn && (header.Difficulty.Cmp(diffInTurnSenior) != 0 || header.Difficulty.Cmp(diffInTurnSubordinate) != 0) {
 			return errWrongDifficulty
 		}
 		if !inturn && header.Difficulty.Cmp(diffNoTurn) != 0 {
@@ -710,7 +711,10 @@ func (c *Clique) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, 
 
 func calcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 	if snap.inturn(snap.Number+1, signer) {
-		return new(big.Int).Set(diffInTurn)
+		if snap.isSenior(signer) {
+			return new(big.Int).Set(diffInTurnSenior)
+		}
+		return new(big.Int).Set(diffInTurnSubordinate)
 	}
 	return new(big.Int).Set(diffNoTurn)
 }
