@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -287,7 +288,9 @@ func (b *EthAPIBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscri
 	return b.eth.BlockChain().SubscribeLogsEvent(ch)
 }
 
+// SendTx sends a signed transaction to the transaction pool.
 func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
+	log.Info("transaction entering mempool", "tx_hash", signedTx.Hash().Hex())
 	return b.eth.txPool.Add([]*types.Transaction{signedTx}, true, false)[0]
 }
 

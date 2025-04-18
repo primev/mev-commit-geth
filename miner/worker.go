@@ -545,10 +545,12 @@ func (w *worker) mainLoop() {
 			if !w.isRunning() && w.current != nil {
 				// If block is already full, abort
 				if gp := w.current.gasPool; gp != nil && gp.Gas() < params.TxGas {
+					log.Info("Gas pool is full, skipping transaction", "gas", gp.Gas())
 					continue
 				}
 				txs := make(map[common.Address][]*txpool.LazyTransaction, len(ev.Txs))
 				for _, tx := range ev.Txs {
+					log.Info("Adding transaction to pending block", "tx_hash", tx.Hash().Hex())
 					acc, _ := types.Sender(w.current.signer, tx)
 					txs[acc] = append(txs[acc], &txpool.LazyTransaction{
 						Pool:      w.eth.TxPool(), // We don't know where this came from, yolo resolve from everywhere
@@ -750,6 +752,9 @@ func (w *worker) updateSnapshot(env *environment) {
 	w.snapshotState = env.state.Copy()
 }
 
+// This function commits a transaction to the EVM.
+// If the transaction type is BlobTxType, it calls the commitBlobTransaction function.
+// Otherwise, it applies the transaction and updates the EVM state.
 func (w *worker) commitTransaction(env *environment, tx *types.Transaction) ([]*types.Log, error) {
 	if tx.Type() == types.BlobTxType {
 		return w.commitBlobTransaction(env, tx)
@@ -762,7 +767,6 @@ func (w *worker) commitTransaction(env *environment, tx *types.Transaction) ([]*
 	env.receipts = append(env.receipts, receipt)
 	return receipt.Logs, nil
 }
-
 func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) ([]*types.Log, error) {
 	sc := tx.BlobTxSidecar()
 	if sc == nil {
@@ -793,14 +797,20 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction) (*typ
 		snap = env.state.Snapshot()
 		gp   = env.gasPool.Gas()
 	)
+	log.Info("executing transaction on node", "tx_hash", tx.Hash(), "gas_available", gp)
 	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
+		log.Error("Transaction application failed", "tx_hash", tx.Hash(), "error", err)
 		env.state.RevertToSnapshot(snap)
 		env.gasPool.SetGas(gp)
+	} else {
+		log.Info("Transaction applied successfully", "tx_hash", tx.Hash(), "gas_used", env.header.GasUsed)
 	}
 	return receipt, err
 }
 
+// This function commits transactions by processing them in order of price and nonce.
+// It handles transaction execution, gas and tip calculations, and interruption handling.
 func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAndNonce, interrupt *atomic.Int32, minTip *big.Int) error {
 	gasLimit := env.header.GasLimit
 	if env.gasPool == nil {
@@ -827,7 +837,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		}
 		// If we don't have enough space for the next transaction, skip the account.
 		if env.gasPool.Gas() < ltx.Gas {
-			log.Trace("Not enough gas left for transaction", "hash", ltx.Hash, "left", env.gasPool.Gas(), "needed", ltx.Gas)
+			log.Info("Not enough gas left for transaction", "hash", ltx.Hash, "left", env.gasPool.Gas(), "needed", ltx.Gas)
 			txs.Pop()
 			continue
 		}
@@ -1000,7 +1010,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 // be customized with the plugin in the future.
 func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) error {
 	pending := w.eth.TxPool().Pending(true)
-
+	log.Info("Pending transactions retrieved in fillTransactions", "count", len(pending))
 	// Split the pending transactions into locals and remotes.
 	localTxs, remoteTxs := make(map[common.Address][]*txpool.LazyTransaction), pending
 	for _, account := range w.eth.TxPool().Locals() {
@@ -1032,8 +1042,10 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 
 // generateWork generates a sealing block based on the given parameters.
 func (w *worker) generateWork(params *generateParams) *newPayloadResult {
+	log.Info("Starting to generate work for sealing block", "params", params)
 	work, err := w.prepareWork(params)
 	if err != nil {
+		log.Error("Failed to prepare work for sealing", "error", err)
 		return &newPayloadResult{err: err}
 	}
 	defer work.discard()
@@ -1042,18 +1054,29 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 		interrupt := new(atomic.Int32)
 		timer := time.AfterFunc(w.newpayloadTimeout, func() {
 			interrupt.Store(commitInterruptTimeout)
+			log.Info("Transaction processing interrupted due to timeout", "timeout", w.newpayloadTimeout)
 		})
 		defer timer.Stop()
 
 		err := w.fillTransactions(interrupt, work)
 		if errors.Is(err, errBlockInterruptedByTimeout) {
-			log.Warn("Block building is interrupted", "allowance", common.PrettyDuration(w.newpayloadTimeout))
+			log.Warn("Block building is interrupted by timeout", "allowance", common.PrettyDuration(w.newpayloadTimeout))
+		} else if err != nil {
+			log.Error("Error while filling transactions into block", "error", err)
+		} else {
+			log.Info("Transactions successfully filled into block")
 		}
+	} else {
+		log.Info("No transactions to process as per parameters")
 	}
+
+	log.Info("Finalizing and assembling block")
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, params.withdrawals)
 	if err != nil {
+		log.Error("Failed to finalize and assemble block", "error", err)
 		return &newPayloadResult{err: err}
 	}
+	log.Info("Block successfully finalized and assembled", "blockHash", block.Hash())
 	return &newPayloadResult{
 		block:    block,
 		fees:     totalFees(block, work.receipts),
