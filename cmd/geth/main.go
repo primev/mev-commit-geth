@@ -343,9 +343,6 @@ func geth(ctx *cli.Context) error {
 
 	startNode(ctx, stack, backend, false)
 
-	upgradeBlockHeight := uint64(10)
-	utils.ShutdownAtUpgradeBlockHeight(ctx, stack, upgradeBlockHeight)
-
 	stack.Wait()
 	return nil
 }
@@ -369,6 +366,9 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 	// Create a client to interact with local geth node.
 	rpcClient := stack.Attach()
 	ethClient := ethclient.NewClient(rpcClient)
+
+	upgradeBlockHeight := uint64(10)
+	utils.ShutdownAtUpgradeBlockHeight(ctx, stack, ethClient, upgradeBlockHeight)
 
 	go func() {
 		// Open any wallets already attached

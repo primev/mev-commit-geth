@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -40,6 +41,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/internal/era"
@@ -123,28 +125,28 @@ func StartNode(ctx *cli.Context, stack *node.Node, isConsole bool) {
 	}()
 }
 
-func ShutdownAtUpgradeBlockHeight(ctx *cli.Context, n *node.Node, upgradeBlockHeight uint64) {
+func ShutdownAtUpgradeBlockHeight(ctx *cli.Context, n *node.Node, ethClient *ethclient.Client, upgradeBlockHeight uint64) {
 	log.Info("Starting goroutine to shutdown at upgrade block height", "upgradeBlockHeight", upgradeBlockHeight)
-	sub := n.EventMux().Subscribe(core.ChainHeadEvent{})
 	go func() {
+		headers := make(chan *types.Header)
+		sub, err := ethClient.SubscribeNewHead(context.Background(), headers)
+		if err != nil {
+			log.Error("ShutdownAtUpgradeBlockHeight: failed to subscribe to new head", "err", err)
+			return
+		}
 		defer sub.Unsubscribe()
 		for {
 			select {
 			case <-ctx.Done():
 				log.Info("ShutdownAtUpgradeBlockHeight: context cancelled, exiting goroutine")
 				return
-			case ev, ok := <-sub.Chan():
+			case header, ok := <-headers:
 				if !ok {
 					log.Error("ShutdownAtUpgradeBlockHeight: subscription closed, exiting goroutine")
 					return
 				}
-				ch, ok := ev.Data.(core.ChainHeadEvent)
-				if !ok {
-					log.Error("ShutdownAtUpgradeBlockHeight: failed to convert ChainHeadEvent, exiting goroutine")
-					continue
-				}
-				if ch.Block.Number().Uint64() >= upgradeBlockHeight {
-					log.Info("Target upgrade block height reached, initiating shutdown", "block", ch.Block.Number().Uint64())
+				if header.Number.Uint64() >= upgradeBlockHeight {
+					log.Info("Target upgrade block height reached, initiating shutdown", "block", header.Number.Uint64())
 					n.Close()
 					return
 				}
