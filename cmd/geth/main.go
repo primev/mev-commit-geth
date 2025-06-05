@@ -342,7 +342,6 @@ func geth(ctx *cli.Context) error {
 	defer stack.Close()
 
 	startNode(ctx, stack, backend, false)
-
 	stack.Wait()
 	return nil
 }
