@@ -567,7 +567,7 @@ var (
 	}
 
 	UpgradeTimestampFlag = &cli.Uint64Flag{
-		Name:     "upgrade-timestamp",
+		Name:     "upgrade-timestamp-ms",
 		Usage:    "Timestamp (in unix milliseconds) at which the node will shut down for upgrade",
 		Category: flags.MiscCategory,
 	}
