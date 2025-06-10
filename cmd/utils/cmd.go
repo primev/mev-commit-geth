@@ -125,8 +125,13 @@ func StartNode(ctx *cli.Context, stack *node.Node, isConsole bool) {
 	}()
 }
 
-func ShutdownAtUpgradeBlockHeight(ctx *cli.Context, n *node.Node, ethClient *ethclient.Client, upgradeBlockHeight uint64) {
-	log.Info("Starting goroutine to shutdown at upgrade block height", "upgradeBlockHeight", upgradeBlockHeight)
+func ShutdownAtUpgradeTimestamp(ctx *cli.Context, n *node.Node, ethClient *ethclient.Client) {
+	upgradeTimestamp := n.Config().UpgradeTimestamp
+	if upgradeTimestamp == 0 {
+		log.Info("Upgrade timestamp is not set, skipping shutdown at upgrade timestamp")
+		return
+	}
+	log.Info("Starting goroutine to shutdown at upgrade timestamp", "upgradeTimestamp", upgradeTimestamp)
 	go func() {
 		headers := make(chan *types.Header)
 		sub, err := ethClient.SubscribeNewHead(context.Background(), headers)
@@ -145,8 +150,8 @@ func ShutdownAtUpgradeBlockHeight(ctx *cli.Context, n *node.Node, ethClient *eth
 					log.Error("ShutdownAtUpgradeBlockHeight: subscription closed, exiting goroutine")
 					return
 				}
-				if header.Number.Uint64() >= upgradeBlockHeight {
-					log.Info("Target upgrade block height reached, initiating shutdown", "block", header.Number.Uint64())
+				if header.Time >= upgradeTimestamp {
+					log.Info("Target upgrade timestamp reached, initiating shutdown", "timestamp", header.Time)
 					n.Close()
 					return
 				}

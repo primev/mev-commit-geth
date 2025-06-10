@@ -147,6 +147,7 @@ var (
 		utils.LogDebugFlag,
 		utils.LogBacktraceAtFlag,
 		utils.ZeroFeeAddressesFlag,
+		utils.UpgradeTimestampFlag,
 	}, utils.NetworkFlags, utils.DatabaseFlags)
 
 	rpcFlags = []cli.Flag{
@@ -366,8 +367,7 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 	rpcClient := stack.Attach()
 	ethClient := ethclient.NewClient(rpcClient)
 
-	upgradeBlockHeight := uint64(10)
-	utils.ShutdownAtUpgradeBlockHeight(ctx, stack, ethClient, upgradeBlockHeight)
+	utils.ShutdownAtUpgradeTimestamp(ctx, stack, ethClient)
 
 	go func() {
 		// Open any wallets already attached
