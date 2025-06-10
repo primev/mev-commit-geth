@@ -136,22 +136,22 @@ func ShutdownAtUpgradeTimestamp(ctx *cli.Context, n *node.Node, ethClient *ethcl
 		headers := make(chan *types.Header)
 		sub, err := ethClient.SubscribeNewHead(context.Background(), headers)
 		if err != nil {
-			log.Error("ShutdownAtUpgradeBlockHeight: failed to subscribe to new head", "err", err)
+			log.Error("ShutdownAtUpgradeTimestamp: failed to subscribe to new head", "err", err)
 			return
 		}
 		defer sub.Unsubscribe()
 		for {
 			select {
 			case <-ctx.Done():
-				log.Info("ShutdownAtUpgradeBlockHeight: context cancelled, exiting goroutine")
+				log.Info("ShutdownAtUpgradeTimestamp: context cancelled, exiting goroutine")
 				return
 			case header, ok := <-headers:
 				if !ok {
-					log.Error("ShutdownAtUpgradeBlockHeight: subscription closed, exiting goroutine")
+					log.Error("ShutdownAtUpgradeTimestamp: subscription closed, exiting goroutine")
 					return
 				}
 				if header.Time >= upgradeTimestamp {
-					log.Info("Target upgrade timestamp reached, initiating shutdown", "timestamp", header.Time)
+					log.Info("Target upgrade timestamp reached, initiating shutdown", "header_timestamp", header.Time)
 					n.Close()
 					return
 				}
