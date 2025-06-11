@@ -566,6 +566,12 @@ var (
 		Category:  flags.MiscCategory,
 	}
 
+	UpgradeTimestampFlag = &cli.Uint64Flag{
+		Name:     "upgrade-timestamp-ms",
+		Usage:    "Timestamp (in unix milliseconds) at which the node will shut down for upgrade",
+		Category: flags.MiscCategory,
+	}
+
 	// RPC settings
 	IPCDisabledFlag = &cli.BoolFlag{
 		Name:     "ipcdisable",
@@ -1404,6 +1410,9 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	}
 	if ctx.IsSet(LogDebugFlag.Name) {
 		log.Warn("log.debug flag is deprecated")
+	}
+	if ctx.IsSet(UpgradeTimestampFlag.Name) {
+		cfg.UpgradeTimestamp = ctx.Uint64(UpgradeTimestampFlag.Name)
 	}
 }
 

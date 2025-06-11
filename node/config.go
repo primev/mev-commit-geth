@@ -211,6 +211,9 @@ type Config struct {
 	EnablePersonal bool `toml:"-"`
 
 	DBEngine string `toml:",omitempty"`
+
+	// UpgradeTimestamp is approximately the timestamp where the node will shut down for upgrade.
+	UpgradeTimestamp uint64 `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into

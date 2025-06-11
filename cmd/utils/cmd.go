@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -40,6 +41,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/internal/era"
@@ -119,6 +121,42 @@ func StartNode(ctx *cli.Context, stack *node.Node, isConsole bool) {
 		} else {
 			<-sigc
 			shutdown()
+		}
+	}()
+}
+
+func ShutdownAtUpgradeTimestamp(ctx *cli.Context, n *node.Node, ethClient *ethclient.Client) {
+	upgradeTimestamp := n.Config().UpgradeTimestamp
+	if upgradeTimestamp == 0 {
+		log.Info("Upgrade timestamp is not set, skipping shutdown at upgrade timestamp")
+		return
+	}
+	log.Info("Starting goroutine to shutdown at upgrade timestamp", "upgradeTimestamp", upgradeTimestamp)
+	go func() {
+		headers := make(chan *types.Header)
+		sub, err := ethClient.SubscribeNewHead(context.Background(), headers)
+		if err != nil {
+			log.Error("ShutdownAtUpgradeTimestamp: failed to subscribe to new head", "err", err)
+			return
+		}
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case <-ctx.Done():
+				log.Info("ShutdownAtUpgradeTimestamp: context cancelled, exiting goroutine")
+				return
+			case header, ok := <-headers:
+				if !ok {
+					log.Error("ShutdownAtUpgradeTimestamp: subscription closed, exiting goroutine")
+					return
+				}
+				shutdownTimestamp := upgradeTimestamp - 200 // Timestamps are in ms, block time is 200ms
+				if header.Time >= shutdownTimestamp {
+					log.Info("Final block before upgrade has been sealed, initiating shutdown", "header_timestamp", header.Time)
+					n.Close()
+					return
+				}
+			}
 		}
 	}()
 }
