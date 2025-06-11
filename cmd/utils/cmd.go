@@ -150,8 +150,9 @@ func ShutdownAtUpgradeTimestamp(ctx *cli.Context, n *node.Node, ethClient *ethcl
 					log.Error("ShutdownAtUpgradeTimestamp: subscription closed, exiting goroutine")
 					return
 				}
-				if header.Time >= upgradeTimestamp {
-					log.Info("Target upgrade timestamp reached, initiating shutdown", "header_timestamp", header.Time)
+				shutdownTimestamp := upgradeTimestamp - 200 // Timestamps are in ms, block time is 200ms
+				if header.Time >= shutdownTimestamp {
+					log.Info("Final block before upgrade has been sealed, initiating shutdown", "header_timestamp", header.Time)
 					n.Close()
 					return
 				}
