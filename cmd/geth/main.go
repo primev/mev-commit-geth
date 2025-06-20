@@ -367,7 +367,7 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 	rpcClient := stack.Attach()
 	ethClient := ethclient.NewClient(rpcClient)
 
-	utils.ShutdownAtUpgradeTimestamp(ctx, stack, ethClient)
+	utils.ShutdownAtUpgradeTimestamp(ctx, stack, ethClient, backend)
 
 	go func() {
 		// Open any wallets already attached
