@@ -45,6 +45,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/internal/era"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
@@ -125,7 +126,7 @@ func StartNode(ctx *cli.Context, stack *node.Node, isConsole bool) {
 	}()
 }
 
-func ShutdownAtUpgradeTimestamp(ctx *cli.Context, n *node.Node, ethClient *ethclient.Client) {
+func ShutdownAtUpgradeTimestamp(ctx *cli.Context, n *node.Node, ethClient *ethclient.Client, backend ethapi.Backend) {
 	upgradeTimestamp := n.Config().UpgradeTimestamp
 	if upgradeTimestamp == 0 {
 		log.Info("Upgrade timestamp is not set, skipping shutdown at upgrade timestamp")
@@ -152,6 +153,12 @@ func ShutdownAtUpgradeTimestamp(ctx *cli.Context, n *node.Node, ethClient *ethcl
 				}
 				shutdownTimestamp := upgradeTimestamp - 200 // Timestamps are in ms, block time is 200ms
 				if header.Time >= shutdownTimestamp {
+					totalDifficulty := backend.GetTd(ctx.Context, header.Hash())
+					if totalDifficulty == nil {
+						log.Error("ShutdownAtUpgradeTimestamp: failed to get total difficulty", "header", header.Hash())
+						return
+					}
+					os.WriteFile("totalDifficulty.txt", []byte(totalDifficulty.String()), 0644)
 					log.Info("Final block before upgrade has been sealed, initiating shutdown", "header_timestamp", header.Time)
 					n.Close()
 					return
