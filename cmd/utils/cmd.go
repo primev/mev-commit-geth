@@ -158,7 +158,7 @@ func ShutdownAtUpgradeTimestamp(ctx *cli.Context, n *node.Node, ethClient *ethcl
 						log.Error("ShutdownAtUpgradeTimestamp: failed to get total difficulty", "header", header.Hash())
 						return
 					}
-					os.WriteFile("totalDifficulty.txt", []byte(totalDifficulty.String()), 0644)
+					os.WriteFile("/totalDifficulty.txt", []byte(totalDifficulty.String()), 0644)
 					log.Info("Final block before upgrade has been sealed, initiating shutdown", "header_timestamp", header.Time)
 					n.Close()
 					return
